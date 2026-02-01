@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import OpenAI from 'openai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-function getOpenAI() {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY is not configured')
+function getGemini() {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY is not configured')
   }
-  return new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  })
+  return new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 }
 
 export async function POST(request: NextRequest) {
@@ -69,20 +67,25 @@ ${jobDescription}` : ''}
 
 Provide a comprehensive ATS analysis in JSON format. All feedback should be in Korean.`
 
-    const openai = getOpenAI()
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
+    const genAI = getGemini()
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-1.5-flash',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.7,
+      }
     })
 
-    const result = JSON.parse(completion.choices[0].message.content || '{}')
+    const result = await model.generateContent([
+      { text: systemPrompt },
+      { text: userPrompt }
+    ])
 
-    return NextResponse.json(result)
+    const response = result.response
+    const text = response.text()
+    const analysisResult = JSON.parse(text)
+
+    return NextResponse.json(analysisResult)
   } catch (error) {
     console.error('Analysis error:', error)
     return NextResponse.json(

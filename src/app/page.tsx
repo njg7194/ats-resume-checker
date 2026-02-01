@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { loadStripe } from '@stripe/stripe-js'
+import { useState, useCallback, useEffect } from 'react'
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+// LemonSqueezy 체크아웃 URL
+const LEMONSQUEEZY_CHECKOUT_URL = 'https://claudbote.lemonsqueezy.com/checkout/buy/e459e1d4-7b47-4ddb-88c0-0c9674ac4809'
 
 interface AnalysisResult {
   score: number
@@ -28,6 +28,18 @@ export default function Home() {
   const [error, setError] = useState('')
   const [isPaid, setIsPaid] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+
+  // 결제 성공 여부 확인
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      if (urlParams.get('success') === 'true') {
+        setIsPaid(true)
+        // URL에서 파라미터 제거
+        window.history.replaceState({}, '', window.location.pathname)
+      }
+    }
+  }, [])
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -61,31 +73,20 @@ export default function Home() {
     }
   }
 
-  const handlePayment = async () => {
+  const handlePayment = () => {
     if (!file) {
       setError('이력서를 먼저 업로드해주세요')
       return
     }
 
-    setLoading(true)
-    try {
-      const response = await fetch('/api/create-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
-      
-      const { sessionId } = await response.json()
-      const stripe = await stripePromise
-      
-      if (stripe) {
-        const { error } = await stripe.redirectToCheckout({ sessionId })
-        if (error) setError(error.message || '결제 오류가 발생했습니다')
-      }
-    } catch (err) {
-      setError('결제 처리 중 오류가 발생했습니다')
-    } finally {
-      setLoading(false)
-    }
+    // 현재 URL을 기준으로 성공 리다이렉트 URL 생성
+    const successUrl = typeof window !== 'undefined' 
+      ? `${window.location.origin}?success=true`
+      : ''
+    
+    // LemonSqueezy 체크아웃으로 리다이렉트
+    const checkoutUrl = `${LEMONSQUEEZY_CHECKOUT_URL}?checkout[custom][redirect_url]=${encodeURIComponent(successUrl)}`
+    window.location.href = checkoutUrl
   }
 
   const handleAnalyze = async () => {
@@ -119,16 +120,6 @@ export default function Home() {
       setLoading(false)
     }
   }
-
-  // Check for successful payment on mount
-  useState(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search)
-      if (urlParams.get('success') === 'true') {
-        setIsPaid(true)
-      }
-    }
-  })
 
   return (
     <main className="min-h-screen py-12 px-4">
@@ -197,6 +188,13 @@ export default function Home() {
             {error && (
               <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-xl">
                 {error}
+              </div>
+            )}
+
+            {/* Payment Success Message */}
+            {isPaid && (
+              <div className="bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 px-4 py-3 rounded-xl">
+                ✅ 결제가 완료되었습니다! 이력서를 업로드하고 분석을 시작하세요.
               </div>
             )}
 
